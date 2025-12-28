@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MaBondhu AI - Maternal Health Companion</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header Section -->
+        <header class="header">
+            <div class="logo-section">
+                <div class="logo-icon">🤰</div>
+                <h1 class="logo-text">MaBondhu AI</h1>
+            </div>
+            <p class="tagline">Your Trusted Maternal Health Companion</p>
+        </header>
+
+        <!-- Main Chat Container -->
+        <main class="chat-container">
+            <!-- Welcome Message -->
+            <div id="welcomeMessage" class="welcome-message">
+                <div class="welcome-icon">💚</div>
+                <h2>Welcome to MaBondhu AI</h2>
+                <p>I'm here to provide you with safe, evidence-based guidance for maternal health. Ask me anything about:</p>
+                <div class="topic-grid">
+                    <div class="topic-item">🥗 Nutrition & Diet</div>
+                    <div class="topic-item">💊 Medications</div>
+                    <div class="topic-item">🏥 Antenatal Care</div>
+                    <div class="topic-item">🤱 Breastfeeding</div>
+                    <div class="topic-item">⚠️ Emergency Signs</div>
+                    <div class="topic-item">👶 Newborn Care</div>
+                </div>
+                <p class="disclaimer">⚕️ <em>Always consult your healthcare provider for medical decisions</em></p>
+            </div>
+
+            <!-- Chat Messages Area -->
+            <div id="chatMessages" class="chat-messages"></div>
+            
+            <!-- Loading Indicator -->
+            <div id="loadingIndicator" class="loading-indicator" style="display: none;">
+                <div class="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+                <p>MaBondhu AI is thinking...</p>
+            </div>
+        </main>
+
+        <!-- Input Section -->
+        <footer class="input-section">
+            <div class="language-selector">
+                <label for="language">Language:</label>
+                <select id="language" class="language-dropdown">
+                    <option value="English">English</option>
+                    <option value="Bengali">বাংলা (Bengali)</option>
+                </select>
+            </div>
+            
+            <div class="input-container">
+                <textarea 
+                    id="userInput" 
+                    class="input-field" 
+                    placeholder="Type your question here... (e.g., What foods should I eat during pregnancy?)"
+                    rows="1"
+                ></textarea>
+                <button id="sendButton" class="send-button">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000';
+        const chatMessages = document.getElementById('chatMessages');
+        const userInput = document.getElementById('userInput');
+        const sendButton = document.getElementById('sendButton');
+        const languageSelect = document.getElementById('language');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const welcomeMessage = document.getElementById('welcomeMessage');
+
+        // Auto-resize textarea
+        userInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+
+        // Send message on Enter (Shift+Enter for new line)
+        userInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        sendButton.addEventListener('click', sendMessage);
+
+        async function sendMessage() {
+            const question = userInput.value.trim();
+            const language = languageSelect.value;
+
+            if (!question) return;
+
+            // Hide welcome message on first query
+            if (welcomeMessage) {
+                welcomeMessage.style.display = 'none';
+            }
+
+            // Display user message
+            addMessage(question, 'user');
+            userInput.value = '';
+            userInput.style.height = 'auto';
+
+            // Show loading indicator
+            loadingIndicator.style.display = 'flex';
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/query`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        question: question,
+                        language: language
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                // Hide loading indicator
+                loadingIndicator.style.display = 'none';
+
+                // Display AI response
+                addMessage(data.answer, 'ai', data.is_emergency, data.sources);
+
+            } catch (error) {
+                loadingIndicator.style.display = 'none';
+                addMessage('❌ Sorry, I encountered an error. Please make sure the API is running and try again.', 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        function addMessage(text, type, isEmergency = false, sources = []) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}-message`;
+
+            if (type === 'user') {
+                messageDiv.innerHTML = `
+                    <div class="message-content">
+                        <div class="message-avatar user-avatar">👤</div>
+                        <div class="message-text">${escapeHtml(text)}</div>
+                    </div>
+                `;
+            } else if (type === 'ai') {
+                const emergencyClass = isEmergency ? 'emergency-response' : '';
+                let sourcesHtml = '';
+                
+                if (sources && sources.length > 0) {
+                    sourcesHtml = '<div class="sources-section"><strong>📚 Sources:</strong><ul class="sources-list">';
+                    sources.forEach(source => {
+                        sourcesHtml += `<li>${source.source} (${source.document_type})</li>`;
+                    });
+                    sourcesHtml += '</ul></div>';
+                }
+
+                messageDiv.innerHTML = `
+                    <div class="message-content ${emergencyClass}">
+                        <div class="message-avatar ai-avatar">🤰</div>
+                        <div class="message-text">
+                            ${formatMessage(text)}
+                            ${sourcesHtml}
+                        </div>
+                    </div>
+                `;
+            } else if (type === 'error') {
+                messageDiv.innerHTML = `
+                    <div class="message-content error-content">
+                        <div class="message-text">${text}</div>
+                    </div>
+                `;
+            }
+
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function formatMessage(text) {
+            // Convert markdown-style formatting to HTML
+            text = escapeHtml(text);
+            
+            // Bold text
+            text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // Line breaks
+            text = text.replace(/\n/g, '<br>');
+            
+            // Numbered lists
+            text = text.replace(/(\d+)\.\s/g, '<br><strong>$1.</strong> ');
+            
+            // Bullet points
+            text = text.replace(/^-\s/gm, '<br>• ');
+            
+            return text;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Check API health on load
+        async function checkAPIHealth() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`);
+                if (!response.ok) {
+                    console.warn('API health check failed');
+                }
+            } catch (error) {
+                console.warn('Could not connect to API:', error);
+            }
+        }
+
+        checkAPIHealth();
+    </script>
+</body>
+</html>
